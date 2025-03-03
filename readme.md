@@ -33,7 +33,7 @@ VisionScribe is a web application that leverages advanced AI models to generate 
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/wprashed/VisionScribe
+git clone https://github.com/wprashed/visionscribe
 cd visionscribe
 ```
 
