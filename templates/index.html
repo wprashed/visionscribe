@@ -4,151 +4,121 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VisionScribe - Transforming Images into Detailed Narratives</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
-    <style>
-        [x-cloak] { display: none !important; }
-        .image-upload-section{ height: 500px;}
-        .upload-label{ height: 500px !important;}
-    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/styles.css">
 </head>
-<body class="bg-gray-100 min-h-screen py-12 px-4 sm:px-6 lg:px-8" x-data="imageCaption()">
-    <div class="max-w-4xl mx-auto">
-        <div class="bg-white p-8 rounded-lg shadow-md">
-            <h1 class="text-3xl font-bold mb-6 text-center text-gray-800">VisionScribe</h1>
-            <h1 class="text-lg font-bold mb-6 text-center text-gray-800">Transforming Images into Detailed Narratives</h1>
-            <form @submit.prevent="uploadImage" class="space-y-4">
-                <div class="flex items-center image-upload-section justify-center w-full">
-                    <label for="file-upload" class="upload-label flex flex-col items-center justify-center w-full h-64 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
-                        <div class="flex flex-col items-center justify-center pt-5 pb-6" x-show="!imagePreview">
-                            <svg class="w-10 h-10 mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
-                            <p class="mb-2 text-sm text-gray-500"><span class="font-semibold">Click to upload</span> or drag and drop</p>
-                            <p class="text-xs text-gray-500">PNG, JPG or GIF (MAX. 800x400px)</p>
+<body>
+    <div class="container">
+        <header class="app-header">
+            <h1>VisionScribe</h1>
+            <p>Transforming Images into Detailed Narratives</p>
+        </header>
+
+        <div class="tabs">
+            <button class="tab-button active" data-tab="generate">Generate Caption</button>
+            <button class="tab-button" data-tab="train">Train Model</button>
+        </div>
+
+        <div class="tab-content active" id="generate-tab">
+            <div class="content-grid">
+                <div class="upload-section">
+                    <div class="image-upload-area" id="upload-area">
+                        <div class="upload-placeholder" id="upload-placeholder">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <p>Click to upload or drag and drop</p>
+                            <p class="small">PNG, JPG or GIF</p>
                         </div>
-                        <img x-show="imagePreview" :src="imagePreview" class="w-full h-full object-cover rounded-lg" />
-                        <input @change="previewImage" id="file-upload" name="file" type="file" class="hidden" accept="image/*" required />
-                    </label>
-                </div>
-                <button type="submit" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-105">
-                    Generate Caption
-                </button>
-            </form>
-            <div x-show="loading" class="mt-4 text-center">
-                <div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
-                <p class="mt-2 text-gray-600">Generating caption...</p>
-            </div>
-            <div x-show="caption" x-cloak class="mt-4 p-4 bg-gray-100 rounded-lg">
-                <h2 class="text-xl font-semibold mb-2 text-gray-700">Generated Caption:</h2>
-                <p x-text="caption" class="text-gray-800 whitespace-pre-line"></p>
-                <div class="mt-4 flex flex-wrap items-center gap-4">
-                    <button @click="likeCaption(true)" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline transition duration-300 ease-in-out">
-                        <i class="fas fa-thumbs-up mr-2"></i> Like
-                    </button>
-                    <button @click="likeCaption(false)" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline transition duration-300 ease-in-out">
-                        <i class="fas fa-thumbs-down mr-2"></i> Dislike
-                    </button>
-                    <button @click="copyCaption" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline transition duration-300 ease-in-out">
-                        <i class="fas fa-copy mr-2"></i> Copy
+                        <img id="image-preview" class="hidden" src="/placeholder.svg" alt="Preview">
+                        <button id="clear-image" class="clear-button hidden">
+                            <i class="fas fa-times"></i>
+                        </button>
+                        <input type="file" id="file-upload" accept="image/*" hidden>
+                    </div>
+                    <button id="generate-button" class="primary-button" disabled>
+                        <i class="fas fa-magic"></i> Generate Caption
                     </button>
                 </div>
+
+                <div class="result-section">
+                    <div class="caption-card" id="caption-card">
+                        <h2>Generated Caption:</h2>
+                        <div class="caption-content" id="caption-content">
+                            <p class="placeholder-text">Generated caption will appear here</p>
+                        </div>
+                        <div class="action-buttons hidden" id="action-buttons">
+                            <button id="like-button" class="action-button like">
+                                <i class="fas fa-thumbs-up"></i> Like
+                            </button>
+                            <button id="dislike-button" class="action-button dislike">
+                                <i class="fas fa-thumbs-down"></i> Dislike
+                            </button>
+                            <button id="copy-button" class="action-button copy">
+                                <i class="fas fa-copy"></i> Copy
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="feedback-form hidden" id="feedback-form">
+                        <h3>Provide Additional Feedback:</h3>
+                        <textarea id="feedback-comment" placeholder="Enter your feedback here..."></textarea>
+                        <button id="submit-feedback" class="secondary-button">
+                            Submit Feedback
+                        </button>
+                    </div>
+                </div>
             </div>
-            <div x-show="showFeedback" x-cloak class="mt-4 p-4 bg-gray-100 rounded-lg">
-                <h3 class="text-lg font-semibold mb-2 text-gray-700">Provide Additional Feedback:</h3>
-                <textarea x-model="feedbackComment" class="w-full p-2 border rounded-md" rows="3" placeholder="Enter your feedback here..."></textarea>
-                <button @click="submitFeedback" class="mt-2 bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline transition duration-300 ease-in-out">
-                    Submit Feedback
-                </button>
+        </div>
+
+        <div class="tab-content" id="train-tab">
+            <div class="content-grid">
+                <div class="upload-section">
+                    <div class="image-upload-area" id="train-upload-area">
+                        <div class="upload-placeholder" id="train-upload-placeholder">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <p>Click to upload or drag and drop</p>
+                            <p class="small">PNG, JPG or GIF</p>
+                        </div>
+                        <img id="train-image-preview" class="hidden" src="/placeholder.svg" alt="Preview">
+                        <button id="train-clear-image" class="clear-button hidden">
+                            <i class="fas fa-times"></i>
+                        </button>
+                        <input type="file" id="train-file-upload" accept="image/*" hidden>
+                    </div>
+                </div>
+
+                <div class="training-section">
+                    <div class="caption-input-card">
+                        <h3>Accurate Caption</h3>
+                        <textarea id="training-caption" placeholder="Enter an accurate caption for this image..."></textarea>
+                        <p class="hint-text">Provide a detailed and accurate caption for the image to help train the model.</p>
+                        <button id="save-training" class="primary-button" disabled>
+                            <i class="fas fa-save"></i> Save Training Data
+                        </button>
+                    </div>
+                </div>
             </div>
-            <div x-show="error" x-cloak class="mt-4 p-4 bg-red-100 text-red-700 rounded-lg">
-                <p x-text="error"></p>
+
+            <div class="info-card">
+                <h3>About Training</h3>
+                <p>
+                    By providing accurate captions for images, you help improve the model's ability to generate 
+                    better descriptions. Your contributions are valuable for enhancing the AI's understanding of visual content.
+                </p>
             </div>
+        </div>
+
+        <div id="toast" class="toast hidden">
+            <div class="toast-content">
+                <i id="toast-icon" class="fas"></i>
+                <div class="toast-message">
+                    <span id="toast-title"></span>
+                    <span id="toast-description"></span>
+                </div>
+            </div>
+            <div class="toast-progress"></div>
         </div>
     </div>
 
-    <script>
-        function imageCaption() {
-            return {
-                imagePreview: null,
-                caption: null,
-                error: null,
-                loading: false,
-                showFeedback: false,
-                feedbackComment: '',
-                previewImage(event) {
-                    const file = event.target.files[0];
-                    if (file) {
-                        const reader = new FileReader();
-                        reader.onload = (e) => {
-                            this.imagePreview = e.target.result;
-                        };
-                        reader.readAsDataURL(file);
-                    }
-                },
-                uploadImage() {
-                    this.loading = true;
-                    this.caption = null;
-                    this.error = null;
-                    this.showFeedback = false;
-
-                    const formData = new FormData(event.target);
-                    fetch('/', {
-                        method: 'POST',
-                        body: formData
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        this.loading = false;
-                        if (data.caption) {
-                            this.caption = data.caption;
-                        } else {
-                            this.error = data.error || 'An error occurred while processing the image.';
-                        }
-                    })
-                    .catch(error => {
-                        this.loading = false;
-                        this.error = 'An error occurred while uploading the image.';
-                    });
-                },
-                copyCaption() {
-                    if (this.caption) {
-                        navigator.clipboard.writeText(this.caption).then(() => {
-                            alert('Caption copied to clipboard!');
-                        });
-                    }
-                },
-                likeCaption(liked) {
-                    this.showFeedback = true;
-                    this.feedbackLiked = liked;
-                },
-                submitFeedback() {
-                    fetch('/feedback', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            caption: this.caption,
-                            liked: this.feedbackLiked,
-                            comment: this.feedbackComment
-                        })
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            alert('Thank you for your feedback!');
-                            this.showFeedback = false;
-                            this.feedbackComment = '';
-                        } else {
-                            alert('An error occurred while submitting feedback.');
-                        }
-                    })
-                    .catch(error => {
-                        alert('An error occurred while submitting feedback.');
-                    });
-                }
-            }
-        }
-    </script>
+    <script src="/static/script.js"></script>
 </body>
 </html>
