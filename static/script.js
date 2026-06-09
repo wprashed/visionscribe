@@ -1,376 +1,484 @@
 document.addEventListener("DOMContentLoaded", () => {
-    // DOM Elements - Generate Tab
-    const uploadArea = document.getElementById("upload-area")
-    const uploadPlaceholder = document.getElementById("upload-placeholder")
-    const imagePreview = document.getElementById("image-preview")
-    const clearImageBtn = document.getElementById("clear-image")
-    const fileUpload = document.getElementById("file-upload")
-    const generateButton = document.getElementById("generate-button")
-    const captionContent = document.getElementById("caption-content")
-    const actionButtons = document.getElementById("action-buttons")
-    const likeButton = document.getElementById("like-button")
-    const dislikeButton = document.getElementById("dislike-button")
-    const copyButton = document.getElementById("copy-button")
-    const feedbackForm = document.getElementById("feedback-form")
-    const feedbackComment = document.getElementById("feedback-comment")
-    const submitFeedback = document.getElementById("submit-feedback")
-  
-    // DOM Elements - Train Tab
-    const trainUploadArea = document.getElementById("train-upload-area")
-    const trainUploadPlaceholder = document.getElementById("train-upload-placeholder")
-    const trainImagePreview = document.getElementById("train-image-preview")
-    const trainClearImageBtn = document.getElementById("train-clear-image")
-    const trainFileUpload = document.getElementById("train-file-upload")
-    const trainingCaption = document.getElementById("training-caption")
-    const saveTrainingBtn = document.getElementById("save-training")
-  
-    // DOM Elements - Tabs
-    const tabButtons = document.querySelectorAll(".tab-button")
-    const tabContents = document.querySelectorAll(".tab-content")
-  
-    // DOM Elements - Toast
-    const toast = document.getElementById("toast")
-    const toastIcon = document.getElementById("toast-icon")
-    const toastTitle = document.getElementById("toast-title")
-    const toastDescription = document.getElementById("toast-description")
-  
-    // Variables
-    let currentCaption = null
-    let feedbackLiked = null
-    let currentFile = null
-    let trainFile = null
-    let toastTimeout = null
-  
-    // Tab Switching
-    tabButtons.forEach((button) => {
-      button.addEventListener("click", () => {
-        // Remove active class from all buttons and contents
-        tabButtons.forEach((btn) => btn.classList.remove("active"))
-        tabContents.forEach((content) => content.classList.remove("active"))
-  
-        // Add active class to clicked button and corresponding content
-        button.classList.add("active")
-        const tabId = button.getAttribute("data-tab")
-        document.getElementById(`${tabId}-tab`).classList.add("active")
+  const uploadArea = document.getElementById("upload-area")
+  const uploadPlaceholder = document.getElementById("upload-placeholder")
+  const imagePreview = document.getElementById("image-preview")
+  const clearImageBtn = document.getElementById("clear-image")
+  const fileUpload = document.getElementById("file-upload")
+  const generateButton = document.getElementById("generate-button")
+  const captionEditor = document.getElementById("caption-editor")
+  const metadataPanel = document.getElementById("metadata-panel")
+  const actionButtons = document.getElementById("action-buttons")
+  const saveCaptionButton = document.getElementById("save-caption-button")
+  const likeButton = document.getElementById("like-button")
+  const dislikeButton = document.getElementById("dislike-button")
+  const copyButton = document.getElementById("copy-button")
+  const feedbackForm = document.getElementById("feedback-form")
+  const feedbackComment = document.getElementById("feedback-comment")
+  const submitFeedback = document.getElementById("submit-feedback")
+  const styleOptions = document.querySelectorAll(".style-option")
+  const detailLevel = document.getElementById("detail-level")
+  const audienceInput = document.getElementById("audience-input")
+  const languageInput = document.getElementById("language-input")
+  const variantCount = document.getElementById("variant-count")
+  const variantsPanel = document.getElementById("variants-panel")
+  const variantsGrid = document.getElementById("variants-grid")
+  const batchFileUpload = document.getElementById("batch-file-upload")
+  const batchGenerateButton = document.getElementById("batch-generate-button")
+  const batchResults = document.getElementById("batch-results")
+  const historySearch = document.getElementById("history-search")
+  const historyStyleFilter = document.getElementById("history-style-filter")
+  const historyGrid = document.getElementById("history-grid")
+  const statsGrid = document.getElementById("stats-grid")
+  const feedbackFeed = document.getElementById("feedback-feed")
+
+  const trainUploadArea = document.getElementById("train-upload-area")
+  const trainUploadPlaceholder = document.getElementById("train-upload-placeholder")
+  const trainImagePreview = document.getElementById("train-image-preview")
+  const trainClearImageBtn = document.getElementById("train-clear-image")
+  const trainFileUpload = document.getElementById("train-file-upload")
+  const trainingCaption = document.getElementById("training-caption")
+  const saveTrainingBtn = document.getElementById("save-training")
+
+  const tabButtons = document.querySelectorAll(".tab-button")
+  const tabContents = document.querySelectorAll(".tab-content")
+  const toast = document.getElementById("toast")
+  const toastIcon = document.getElementById("toast-icon")
+  const toastTitle = document.getElementById("toast-title")
+  const toastDescription = document.getElementById("toast-description")
+
+  let currentFile = null
+  let currentCaption = null
+  let currentCaptionId = null
+  let feedbackLiked = null
+  let selectedStyle = "detailed"
+  let trainFile = null
+  let toastTimeout = null
+
+  tabButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      tabButtons.forEach((btn) => btn.classList.remove("active"))
+      tabContents.forEach((content) => content.classList.remove("active"))
+      button.classList.add("active")
+      document.getElementById(`${button.dataset.tab}-tab`).classList.add("active")
+
+      if (button.dataset.tab === "history") loadHistory()
+      if (button.dataset.tab === "dashboard") loadDashboard()
+    })
+  })
+
+  styleOptions.forEach((button) => {
+    button.addEventListener("click", () => {
+      styleOptions.forEach((option) => option.classList.remove("active"))
+      button.classList.add("active")
+      selectedStyle = button.dataset.style
+    })
+  })
+
+  uploadArea.addEventListener("click", () => {
+    if (!imagePreview.classList.contains("hidden")) return
+    fileUpload.click()
+  })
+  fileUpload.addEventListener("change", (event) => handleFileSelect(event.target.files[0]))
+  clearImageBtn.addEventListener("click", (event) => {
+    event.stopPropagation()
+    resetImageUpload()
+  })
+
+  uploadArea.addEventListener("dragover", (event) => {
+    event.preventDefault()
+    uploadArea.classList.add("dragover")
+  })
+  uploadArea.addEventListener("dragleave", () => uploadArea.classList.remove("dragover"))
+  uploadArea.addEventListener("drop", (event) => {
+    event.preventDefault()
+    uploadArea.classList.remove("dragover")
+    handleFileSelect(event.dataTransfer.files[0])
+  })
+
+  function handleFileSelect(file) {
+    if (!file) return
+    currentFile = file
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      imagePreview.src = event.target.result
+      uploadPlaceholder.classList.add("hidden")
+      imagePreview.classList.remove("hidden")
+      clearImageBtn.classList.remove("hidden")
+      generateButton.disabled = false
+      renderMetadata({
+        original_filename: file.name,
+        file_size: file.size,
+        image_format: file.type.replace("image/", "").toUpperCase(),
       })
-    })
-  
-    // Image Upload - Generate Tab
-    uploadArea.addEventListener("click", () => {
-      if (!imagePreview.classList.contains("hidden")) return
-      fileUpload.click()
-    })
-  
-    fileUpload.addEventListener("change", handleFileSelect)
-  
-    function handleFileSelect(event) {
-      const file = event.target.files[0]
-      if (!file) return
-  
-      currentFile = file
-      const reader = new FileReader()
-  
-      reader.onload = (e) => {
-        imagePreview.src = e.target.result
-        uploadPlaceholder.classList.add("hidden")
-        imagePreview.classList.remove("hidden")
-        clearImageBtn.classList.remove("hidden")
-        generateButton.disabled = false
-      }
-  
-      reader.readAsDataURL(file)
     }
-  
-    clearImageBtn.addEventListener("click", (e) => {
-      e.stopPropagation()
-      resetImageUpload()
+    reader.readAsDataURL(file)
+  }
+
+  function resetImageUpload() {
+    imagePreview.src = ""
+    uploadPlaceholder.classList.remove("hidden")
+    imagePreview.classList.add("hidden")
+    clearImageBtn.classList.add("hidden")
+    fileUpload.value = ""
+    currentFile = null
+    currentCaption = null
+    currentCaptionId = null
+    feedbackLiked = null
+    generateButton.disabled = true
+    captionEditor.value = ""
+    metadataPanel.innerHTML = "<span>No image selected</span>"
+    actionButtons.classList.add("hidden")
+    feedbackForm.classList.add("hidden")
+    variantsPanel.classList.add("hidden")
+    likeButton.classList.remove("active")
+    dislikeButton.classList.remove("active")
+  }
+
+  generateButton.addEventListener("click", async () => {
+    if (!currentFile) {
+      showToast("error", "Missing image", "Please select an image first")
+      return
+    }
+
+    setBusy(generateButton, "Generating...")
+    captionEditor.value = "Generating caption..."
+    variantsPanel.classList.add("hidden")
+
+    const formData = new FormData()
+    formData.append("file", currentFile)
+    formData.append("style", selectedStyle)
+    formData.append("detail_level", detailLevel.value)
+    formData.append("audience", audienceInput.value)
+    formData.append("language", languageInput.value)
+    formData.append("variants", variantCount.value)
+
+    try {
+      const response = await fetch("/api/generate-caption", { method: "POST", body: formData })
+      const data = await response.json()
+      if (!data.caption) throw new Error(data.error || "Failed to generate caption")
+
+      currentCaption = data.caption
+      currentCaptionId = data.id
+      captionEditor.value = data.caption
+      actionButtons.classList.remove("hidden")
+      renderMetadata(data.metadata)
+      renderVariants(data.variants || [data.caption])
+      showToast("success", "Caption ready", "Variants, metadata, and history were updated")
+      loadDashboard(false)
+    } catch (error) {
+      captionEditor.value = ""
+      showToast("error", "Generation failed", error.message)
+    } finally {
+      resetBusy(generateButton, '<i class="fas fa-magic"></i> Generate Caption')
+    }
+  })
+
+  function renderVariants(variants) {
+    variantsGrid.innerHTML = ""
+    variants.forEach((caption, index) => {
+      const card = document.createElement("button")
+      card.className = "variant-card"
+      card.innerHTML = `<span>Variant ${index + 1}</span><p>${escapeHtml(caption)}</p>`
+      card.addEventListener("click", () => {
+        captionEditor.value = caption
+        currentCaption = caption
+        showToast("success", "Variant selected", "The editable caption has been updated")
+      })
+      variantsGrid.appendChild(card)
     })
-  
-    function resetImageUpload() {
-      imagePreview.src = ""
-      uploadPlaceholder.classList.remove("hidden")
-      imagePreview.classList.add("hidden")
-      clearImageBtn.classList.add("hidden")
-      fileUpload.value = ""
-      currentFile = null
-      generateButton.disabled = true
-  
-      // Reset caption area
-      captionContent.innerHTML = '<p class="placeholder-text">Generated caption will appear here</p>'
-      actionButtons.classList.add("hidden")
+    variantsPanel.classList.toggle("hidden", variants.length === 0)
+  }
+
+  saveCaptionButton.addEventListener("click", async () => {
+    if (!currentCaptionId || !captionEditor.value.trim()) return
+    setBusy(saveCaptionButton, "Saving...")
+    try {
+      const response = await fetch(`/api/captions/${currentCaptionId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ caption: captionEditor.value.trim() }),
+      })
+      const data = await response.json()
+      if (!data.success) throw new Error(data.error || "Failed to save caption")
+      currentCaption = data.caption
+      showToast("success", "Saved", "Caption edit saved to history")
+    } catch (error) {
+      showToast("error", "Save failed", error.message)
+    } finally {
+      resetBusy(saveCaptionButton, '<i class="fas fa-floppy-disk"></i> Save Edit')
+    }
+  })
+
+  likeButton.addEventListener("click", () => {
+    feedbackLiked = true
+    likeButton.classList.add("active")
+    dislikeButton.classList.remove("active")
+    feedbackForm.classList.remove("hidden")
+  })
+
+  dislikeButton.addEventListener("click", () => {
+    feedbackLiked = false
+    dislikeButton.classList.add("active")
+    likeButton.classList.remove("active")
+    feedbackForm.classList.remove("hidden")
+  })
+
+  copyButton.addEventListener("click", () => {
+    const caption = captionEditor.value.trim()
+    if (!caption) return
+    navigator.clipboard.writeText(caption)
+      .then(() => showToast("success", "Copied", "Caption copied to clipboard"))
+      .catch(() => showToast("error", "Copy failed", "Clipboard access was unavailable"))
+  })
+
+  submitFeedback.addEventListener("click", async () => {
+    const caption = captionEditor.value.trim()
+    if (!caption || feedbackLiked === null) return
+
+    try {
+      const response = await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ caption, liked: feedbackLiked, comment: feedbackComment.value }),
+      })
+      const data = await response.json()
+      if (!data.success) throw new Error(data.error || "Failed to submit feedback")
+      showToast("success", "Feedback saved", "Thanks for improving the caption loop")
       feedbackForm.classList.add("hidden")
-      currentCaption = null
+      feedbackComment.value = ""
+      loadDashboard(false)
+    } catch (error) {
+      showToast("error", "Feedback failed", error.message)
     }
-  
-    // Drag and Drop - Generate Tab
-    uploadArea.addEventListener("dragover", (e) => {
-      e.preventDefault()
-      uploadArea.classList.add("dragover")
-    })
-  
-    uploadArea.addEventListener("dragleave", () => {
-      uploadArea.classList.remove("dragover")
-    })
-  
-    uploadArea.addEventListener("drop", (e) => {
-      e.preventDefault()
-      uploadArea.classList.remove("dragover")
-  
-      if (e.dataTransfer.files.length) {
-        fileUpload.files = e.dataTransfer.files
-        handleFileSelect({ target: { files: e.dataTransfer.files } })
-      }
-    })
-  
-    // Generate Caption
-    generateButton.addEventListener("click", async () => {
-      if (!currentFile) {
-        showToast("error", "Error", "Please select an image first")
-        return
-      }
-  
-      // Show loading state
-      generateButton.disabled = true
-      generateButton.innerHTML = '<div class="spinner"></div> Generating...'
-      captionContent.innerHTML =
-        '<p class="placeholder-text">Generating detailed caption...<br>This may take a moment for high-quality results.</p>'
-  
-      const formData = new FormData()
-      formData.append("file", currentFile)
-  
-      try {
-        const response = await fetch("/api/generate-caption", {
-          method: "POST",
-          body: formData,
-        })
-  
-        const data = await response.json()
-  
-        if (data.caption) {
-          currentCaption = data.caption
-  
-          // Format the caption with paragraphs for better readability
-          const formattedCaption = data.caption
-            .split(/\n\n|\n/)
-            .filter((para) => para.trim().length > 0)
-            .map((para) => `<p>${para}</p>`)
-            .join("")
-  
-          captionContent.innerHTML = formattedCaption || `<p>${data.caption}</p>`
-          actionButtons.classList.remove("hidden")
-  
-          // Show success toast for better UX
-          showToast("success", "Success!", "Caption generated successfully")
-        } else {
-          captionContent.innerHTML = `<p class="placeholder-text">Error: ${data.error || "Failed to generate caption"}</p>`
-          showToast("error", "Error", data.error || "Failed to generate caption")
-        }
-      } catch (error) {
-        captionContent.innerHTML = '<p class="placeholder-text">Error: An error occurred while processing the image</p>'
-        showToast("error", "Error", "An error occurred while processing the image")
-      } finally {
-        generateButton.disabled = false
-        generateButton.innerHTML = '<i class="fas fa-magic"></i> Generate Caption'
-      }
-    })
-  
-    // Caption Actions
-    likeButton.addEventListener("click", () => {
-      feedbackLiked = true
-      feedbackForm.classList.remove("hidden")
-    })
-  
-    dislikeButton.addEventListener("click", () => {
-      feedbackLiked = false
-      feedbackForm.classList.remove("hidden")
-    })
-  
-    copyButton.addEventListener("click", () => {
-      if (!currentCaption) return
-  
-      navigator.clipboard
-        .writeText(currentCaption)
-        .then(() => {
-          showToast("success", "Copied!", "Caption copied to clipboard")
-        })
-        .catch(() => {
-          showToast("error", "Error", "Failed to copy caption")
-        })
-    })
-  
-    // Submit Feedback
-    submitFeedback.addEventListener("click", async () => {
-      if (currentCaption === null || feedbackLiked === null) return
-  
-      const comment = feedbackComment.value
-  
-      try {
-        const response = await fetch("/api/feedback", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            caption: currentCaption,
-            liked: feedbackLiked,
-            comment: comment,
-          }),
-        })
-  
-        const data = await response.json()
-  
-        if (data.success) {
-          showToast("success", "Thank you!", "Your feedback has been submitted")
-          feedbackForm.classList.add("hidden")
-          feedbackComment.value = ""
-        } else {
-          showToast("error", "Error", "Failed to submit feedback")
-        }
-      } catch (error) {
-        showToast("error", "Error", "An error occurred while submitting feedback")
-      }
-    })
-  
-    // Image Upload - Train Tab
-    trainUploadArea.addEventListener("click", () => {
-      if (!trainImagePreview.classList.contains("hidden")) return
-      trainFileUpload.click()
-    })
-  
-    trainFileUpload.addEventListener("change", handleTrainFileSelect)
-  
-    function handleTrainFileSelect(event) {
-      const file = event.target.files[0]
-      if (!file) return
-  
-      trainFile = file
-      const reader = new FileReader()
-  
-      reader.onload = (e) => {
-        trainImagePreview.src = e.target.result
-        trainUploadPlaceholder.classList.add("hidden")
-        trainImagePreview.classList.remove("hidden")
-        trainClearImageBtn.classList.remove("hidden")
-        updateSaveButtonState()
-      }
-  
-      reader.readAsDataURL(file)
+  })
+
+  batchGenerateButton.addEventListener("click", async () => {
+    const files = [...batchFileUpload.files].slice(0, 8)
+    if (!files.length) {
+      showToast("error", "Missing images", "Choose one or more batch images")
+      return
     }
-  
-    trainClearImageBtn.addEventListener("click", (e) => {
-      e.stopPropagation()
-      resetTrainImageUpload()
+
+    setBusy(batchGenerateButton, "Generating batch...")
+    batchResults.innerHTML = '<p class="placeholder-text">Generating batch captions...</p>'
+    const formData = new FormData()
+    files.forEach((file) => formData.append("files", file))
+    formData.append("style", selectedStyle)
+    formData.append("detail_level", detailLevel.value)
+    formData.append("audience", audienceInput.value)
+    formData.append("language", languageInput.value)
+
+    try {
+      const response = await fetch("/api/batch-generate", { method: "POST", body: formData })
+      const data = await response.json()
+      if (!data.results) throw new Error(data.error || "Batch generation failed")
+      batchResults.innerHTML = data.results.map(renderBatchItem).join("")
+      showToast("success", "Batch complete", `${data.results.length} captions generated`)
+    } catch (error) {
+      batchResults.innerHTML = '<p class="placeholder-text">Batch generation failed.</p>'
+      showToast("error", "Batch failed", error.message)
+    } finally {
+      resetBusy(batchGenerateButton, '<i class="fas fa-layer-group"></i> Generate Batch')
+    }
+  })
+
+  historySearch.addEventListener("input", debounce(loadHistory, 250))
+  historyStyleFilter.addEventListener("change", loadHistory)
+
+  async function loadHistory() {
+    const params = new URLSearchParams({
+      query: historySearch.value,
+      style: historyStyleFilter.value,
     })
-  
-    function resetTrainImageUpload() {
-      trainImagePreview.src = ""
-      trainUploadPlaceholder.classList.remove("hidden")
-      trainImagePreview.classList.add("hidden")
-      trainClearImageBtn.classList.add("hidden")
-      trainFileUpload.value = ""
-      trainFile = null
+    const response = await fetch(`/api/history?${params}`)
+    const data = await response.json()
+    if (!data.items.length) {
+      historyGrid.innerHTML = '<p class="placeholder-text">No captions found yet.</p>'
+      return
+    }
+    historyGrid.innerHTML = data.items.map(renderHistoryItem).join("")
+  }
+
+  async function loadDashboard(showErrors = true) {
+    try {
+      const response = await fetch("/api/dashboard")
+      const data = await response.json()
+      statsGrid.innerHTML = [
+        ["Captions", data.stats.captions, "fa-closed-captioning"],
+        ["Liked", data.stats.liked, "fa-thumbs-up"],
+        ["Disliked", data.stats.disliked, "fa-thumbs-down"],
+        ["Training pairs", data.stats.training, "fa-database"],
+      ].map(([label, value, icon]) => `<div class="stat-card"><i class="fas ${icon}"></i><span>${label}</span><strong>${value}</strong></div>`).join("")
+
+      feedbackFeed.innerHTML = data.feedback.length
+        ? data.feedback.map((item) => `<article class="feedback-item"><strong>${item.liked ? "Liked" : "Needs work"}</strong><p>${escapeHtml(item.comment || item.caption)}</p><span>${formatDate(item.created_at)}</span></article>`).join("")
+        : '<p class="placeholder-text">No feedback submitted yet.</p>'
+    } catch (error) {
+      if (showErrors) showToast("error", "Dashboard failed", error.message)
+    }
+  }
+
+  trainUploadArea.addEventListener("click", () => {
+    if (!trainImagePreview.classList.contains("hidden")) return
+    trainFileUpload.click()
+  })
+  trainFileUpload.addEventListener("change", (event) => handleTrainFileSelect(event.target.files[0]))
+  trainClearImageBtn.addEventListener("click", (event) => {
+    event.stopPropagation()
+    resetTrainImageUpload()
+  })
+  trainUploadArea.addEventListener("dragover", (event) => {
+    event.preventDefault()
+    trainUploadArea.classList.add("dragover")
+  })
+  trainUploadArea.addEventListener("dragleave", () => trainUploadArea.classList.remove("dragover"))
+  trainUploadArea.addEventListener("drop", (event) => {
+    event.preventDefault()
+    trainUploadArea.classList.remove("dragover")
+    handleTrainFileSelect(event.dataTransfer.files[0])
+  })
+  trainingCaption.addEventListener("input", updateSaveButtonState)
+
+  function handleTrainFileSelect(file) {
+    if (!file) return
+    trainFile = file
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      trainImagePreview.src = event.target.result
+      trainUploadPlaceholder.classList.add("hidden")
+      trainImagePreview.classList.remove("hidden")
+      trainClearImageBtn.classList.remove("hidden")
       updateSaveButtonState()
     }
-  
-    // Drag and Drop - Train Tab
-    trainUploadArea.addEventListener("dragover", (e) => {
-      e.preventDefault()
-      trainUploadArea.classList.add("dragover")
-    })
-  
-    trainUploadArea.addEventListener("dragleave", () => {
-      trainUploadArea.classList.remove("dragover")
-    })
-  
-    trainUploadArea.addEventListener("drop", (e) => {
-      e.preventDefault()
-      trainUploadArea.classList.remove("dragover")
-  
-      if (e.dataTransfer.files.length) {
-        trainFileUpload.files = e.dataTransfer.files
-        handleTrainFileSelect({ target: { files: e.dataTransfer.files } })
-      }
-    })
-  
-    // Training Caption Input
-    trainingCaption.addEventListener("input", updateSaveButtonState)
-  
-    function updateSaveButtonState() {
-      saveTrainingBtn.disabled = !trainFile || !trainingCaption.value.trim()
+    reader.readAsDataURL(file)
+  }
+
+  function resetTrainImageUpload() {
+    trainImagePreview.src = ""
+    trainUploadPlaceholder.classList.remove("hidden")
+    trainImagePreview.classList.add("hidden")
+    trainClearImageBtn.classList.add("hidden")
+    trainFileUpload.value = ""
+    trainFile = null
+    updateSaveButtonState()
+  }
+
+  function updateSaveButtonState() {
+    saveTrainingBtn.disabled = !trainFile || !trainingCaption.value.trim()
+  }
+
+  saveTrainingBtn.addEventListener("click", async () => {
+    if (!trainFile || !trainingCaption.value.trim()) return
+    setBusy(saveTrainingBtn, "Saving...")
+    const formData = new FormData()
+    formData.append("file", trainFile)
+    formData.append("caption", trainingCaption.value)
+
+    try {
+      const response = await fetch("/api/train", { method: "POST", body: formData })
+      const data = await response.json()
+      if (!data.success) throw new Error(data.error || "Failed to save training data")
+      showToast("success", "Training saved", "The image-caption pair was stored")
+      resetTrainImageUpload()
+      trainingCaption.value = ""
+      loadDashboard(false)
+    } catch (error) {
+      showToast("error", "Training failed", error.message)
+    } finally {
+      resetBusy(saveTrainingBtn, '<i class="fas fa-save"></i> Save Training Data')
     }
-  
-    // Save Training Data
-    saveTrainingBtn.addEventListener("click", async () => {
-      if (!trainFile || !trainingCaption.value.trim()) {
-        showToast("error", "Error", "Please select an image and provide a caption")
-        return
-      }
-  
-      // Show loading state
-      saveTrainingBtn.disabled = true
-      saveTrainingBtn.innerHTML = '<div class="spinner"></div> Saving...'
-  
-      const formData = new FormData()
-      formData.append("file", trainFile)
-      formData.append("caption", trainingCaption.value)
-  
-      try {
-        const response = await fetch("/api/train", {
-          method: "POST",
-          body: formData,
-        })
-  
-        const data = await response.json()
-  
-        if (data.success) {
-          showToast("success", "Success!", "Training data has been saved successfully")
-          resetTrainImageUpload()
-          trainingCaption.value = ""
-        } else {
-          showToast("error", "Error", data.error || "Failed to save training data")
-        }
-      } catch (error) {
-        showToast("error", "Error", "An error occurred while saving training data")
-      } finally {
-        saveTrainingBtn.disabled = false
-        saveTrainingBtn.innerHTML = '<i class="fas fa-save"></i> Save Training Data'
-      }
-    })
-  
-    // Toast Notification
-    function showToast(type, title, description) {
-      // Clear any existing timeout
-      if (toastTimeout) {
-        clearTimeout(toastTimeout)
-      }
-  
-      // Set icon based on type
-      if (type === "success") {
-        toastIcon.className = "fas fa-check-circle"
-      } else if (type === "error") {
-        toastIcon.className = "fas fa-exclamation-circle"
-      } else {
-        toastIcon.className = "fas fa-info-circle"
-      }
-  
-      // Set content
-      toastTitle.textContent = title
-      toastDescription.textContent = description
-  
-      // Show toast
-      toast.classList.remove("hidden")
-  
-      // Create progress bar
-      const progressBar = document.createElement("div")
-      progressBar.className = "toast-progress"
-      toast.appendChild(progressBar)
-  
-      // Hide toast after 3 seconds
-      toastTimeout = setTimeout(() => {
-        toast.classList.add("hidden")
-        if (toast.contains(progressBar)) {
-          toast.removeChild(progressBar)
-        }
-      }, 3000)
+  })
+
+  function renderMetadata(metadata) {
+    if (!metadata) return
+    const filename = metadata.original_filename || "Selected image"
+    const size = metadata.file_size ? `${Math.round(metadata.file_size / 1024)} KB` : "Unknown size"
+    const dimensions = metadata.width && metadata.height
+      ? `${metadata.width} x ${metadata.height}`
+      : metadata.image_width && metadata.image_height
+        ? `${metadata.image_width} x ${metadata.image_height}`
+        : "Dimensions pending"
+    const format = metadata.format || metadata.image_format || "Image"
+    metadataPanel.innerHTML = `
+      <div><span>File</span><strong>${escapeHtml(filename)}</strong></div>
+      <div><span>Size</span><strong>${size}</strong></div>
+      <div><span>Dimensions</span><strong>${dimensions}</strong></div>
+      <div><span>Format</span><strong>${escapeHtml(format)}</strong></div>
+    `
+  }
+
+  function renderBatchItem(item) {
+    return `
+      <article class="batch-item">
+        <img src="/${escapeHtml(item.metadata.path)}" alt="">
+        <div>
+          <strong>${escapeHtml(item.metadata.original_filename)}</strong>
+          <p>${escapeHtml(item.caption)}</p>
+        </div>
+      </article>
+    `
+  }
+
+  function renderHistoryItem(item) {
+    return `
+      <article class="history-card">
+        <img src="${escapeHtml(item.image_url)}" alt="">
+        <div>
+          <div class="history-meta"><span>${escapeHtml(item.style || "detailed")}</span><span>${formatDate(item.created_at)}</span></div>
+          <strong>${escapeHtml(item.original_filename || "Uploaded image")}</strong>
+          <p>${escapeHtml(item.caption)}</p>
+        </div>
+      </article>
+    `
+  }
+
+  function setBusy(button, label) {
+    button.disabled = true
+    button.dataset.original = button.innerHTML
+    button.innerHTML = `<div class="spinner"></div> ${label}`
+  }
+
+  function resetBusy(button, fallback) {
+    button.disabled = false
+    button.innerHTML = button.dataset.original || fallback
+  }
+
+  function showToast(type, title, description) {
+    if (toastTimeout) clearTimeout(toastTimeout)
+    toastIcon.className = type === "success"
+      ? "fas fa-check-circle"
+      : type === "error"
+        ? "fas fa-exclamation-circle"
+        : "fas fa-info-circle"
+    toastTitle.textContent = title
+    toastDescription.textContent = description
+    toast.classList.remove("hidden")
+    toastTimeout = setTimeout(() => toast.classList.add("hidden"), 3000)
+  }
+
+  function escapeHtml(value) {
+    return String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;")
+  }
+
+  function formatDate(value) {
+    if (!value) return ""
+    const date = new Date(String(value).replace(" ", "T"))
+    if (Number.isNaN(date.getTime())) return String(value)
+    return date.toLocaleString([], { dateStyle: "medium", timeStyle: "short" })
+  }
+
+  function debounce(fn, delay) {
+    let timeout
+    return () => {
+      clearTimeout(timeout)
+      timeout = setTimeout(fn, delay)
     }
-  })  
+  }
+
+  loadDashboard(false)
+})

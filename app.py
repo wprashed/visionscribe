@@ -2,8 +2,10 @@ import os
 import sqlite3
 import uuid
 import base64
+import csv
+import io
 from datetime import datetime
-from flask import Flask, render_template, request, jsonify, send_from_directory
+from flask import Flask, render_template, request, jsonify, send_from_directory, Response
 from PIL import Image
 import torch
 from transformers import BlipProcessor, BlipForConditionalGeneration
@@ -29,7 +31,29 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model.to(device)
 
 
-def generate_caption_with_openai(image_path):
+STYLE_GUIDANCE = {
+    "detailed": "Write a vivid, detailed caption with visible objects, setting, lighting, mood, and notable context.",
+    "concise": "Write a short, clear caption in one sentence.",
+    "alt": "Write accessible alt text that is factual, concise, and useful for a screen reader.",
+    "social": "Write a polished social media caption with natural energy, but do not add hashtags unless the image strongly suggests them.",
+    "product": "Write a product-style description focused on visible details, materials, qualities, and use cases.",
+    "poetic": "Write an expressive, poetic description while staying grounded in what is visible.",
+}
+
+DETAIL_LIMITS = {
+    "short": 80,
+    "balanced": 180,
+    "rich": 420,
+}
+
+
+def db_connect():
+    conn = sqlite3.connect('visionscribe.db')
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def generate_caption_with_openai(image_path, style="detailed", detail_level="rich", audience="general", language="English"):
     """Generate a detailed caption using OpenAI's vision model as a fallback."""
     # Check if OpenAI API key is available
     api_key = os.getenv("OPENAI_API_KEY")
@@ -55,7 +79,11 @@ def generate_caption_with_openai(image_path):
                     "content": [
                         {
                             "type": "text",
-                            "text": "Generate a very detailed caption for this image. Describe all visible elements, colors, objects, people, scenery, mood, lighting, and any notable features. Make the description comprehensive and vivid."
+                            "text": (
+                                f"{STYLE_GUIDANCE.get(style, STYLE_GUIDANCE['detailed'])} "
+                                f"Audience: {audience or 'general'}. Language: {language or 'English'}. "
+                                "Avoid inventing details that are not visible."
+                            )
                         },
                         {
                             "type": "image_url",
@@ -66,7 +94,7 @@ def generate_caption_with_openai(image_path):
                     ]
                 }
             ],
-            "max_tokens": 500
+            "max_tokens": DETAIL_LIMITS.get(detail_level, 420)
         }
         
         response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
@@ -80,11 +108,109 @@ def generate_caption_with_openai(image_path):
         print(f"Error using OpenAI for caption: {str(e)}")
         return None
 
-# Update the generate_detailed_caption function to try both methods
-def generate_detailed_caption(image_path):
+def split_caption_sentences(caption):
+    """Split generated text into readable sentence fragments."""
+    normalized = " ".join(post_process_caption(caption).split())
+    sentences = []
+    start = 0
+    for index, char in enumerate(normalized):
+        if char in ".!?":
+            part = normalized[start:index + 1].strip()
+            if part:
+                sentences.append(part)
+            start = index + 1
+    tail = normalized[start:].strip()
+    if tail:
+        sentences.append(tail if tail.endswith((".", "!", "?")) else f"{tail}.")
+    return sentences or [normalized]
+
+
+def concise_sentence(caption):
+    sentence = split_caption_sentences(caption)[0].strip()
+    return sentence if sentence.endswith((".", "!", "?")) else f"{sentence}."
+
+
+def caption_phrases(caption):
+    return [
+        phrase.strip(" ,.")
+        for phrase in post_process_caption(caption).replace(" and ", ", ").split(",")
+        if len(phrase.strip(" ,.")) > 3
+    ][:6]
+
+
+def lower_first(text):
+    return text[:1].lower() + text[1:] if text else text
+
+
+def apply_audience_language(variants, audience="general", language="English"):
+    if audience and audience.lower() not in ("general", ""):
+        variants = [f"For {audience}: {variant}" for variant in variants]
+    if language and language.lower() not in ("english", ""):
+        variants = [f"{variant} Requested language: {language}." for variant in variants]
+    return variants
+
+
+def adapt_caption_for_style(base_caption, style="detailed", detail_level="rich", audience="general", language="English", variant_index=0):
+    """Create distinct variants from one model caption without rerunning the model."""
+    caption = post_process_caption(base_caption)
+    sentences = split_caption_sentences(caption)
+    primary = concise_sentence(caption)
+    secondary = " ".join(sentences[:2])
+    phrases = caption_phrases(caption)
+    visible_details = ", ".join(phrases[:5])
+    supporting_details = ", ".join(phrases[1:5])
+
+    if style == "concise":
+        variants = [
+            primary,
+            f"{primary} The frame keeps attention on the main visible subject.",
+            f"Quick caption: {lower_first(primary)}",
+        ]
+    elif style == "alt":
+        variants = [
+            f"Alt text: {primary}",
+            f"Alt text: {secondary}",
+            f"Alt text: The image shows {visible_details}." if visible_details else f"Alt text: {caption}",
+        ]
+    elif style == "social":
+        variants = [
+            f"A visual story in focus: {primary}",
+            f"Captured in frame: {secondary}",
+            f"A moment worth noticing, with {', '.join(phrases[:3])}." if phrases else f"A moment worth noticing: {caption}",
+        ]
+    elif style == "product":
+        variants = [
+            f"Product overview: {primary}",
+            f"Key visible details: {visible_details}." if visible_details else f"Key visible details: {caption}",
+            f"Merchandising note: {secondary} The image emphasizes presentation, color, and visible condition.",
+        ]
+    elif style == "poetic":
+        variants = [
+            f"A quiet scene unfolds: {primary}",
+            f"Light, texture, and form come together as {lower_first(primary)}",
+            f"The frame carries a vivid mood through {', '.join(phrases[:3])}." if phrases else f"The frame carries a vivid mood: {caption}",
+        ]
+    elif detail_level == "short":
+        variants = [
+            primary,
+            f"Short scene note: {primary}",
+            f"Compact description: {secondary}",
+        ]
+    else:
+        variants = [
+            caption,
+            f"Scene summary: {secondary} Notable visible elements include {visible_details}." if visible_details else f"Scene summary: {caption}",
+            f"Accessibility-focused description: {primary} The image also includes {supporting_details}." if supporting_details else f"Accessibility-focused description: {caption}",
+        ]
+
+    variants = apply_audience_language(variants, audience, language)
+    return variants[variant_index % len(variants)]
+
+
+def generate_detailed_caption(image_path, style="detailed", detail_level="rich", audience="general", language="English"):
     """Generate a detailed caption for an image using multiple methods."""
     # First try with OpenAI if available (produces better results)
-    openai_caption = generate_caption_with_openai(image_path)
+    openai_caption = generate_caption_with_openai(image_path, style, detail_level, audience, language)
     if openai_caption:
         return openai_caption
     
@@ -153,6 +279,23 @@ def init_db():
                   image_path TEXT,
                   caption TEXT,
                   created_at TIMESTAMP)''')
+
+    caption_columns = {
+        "original_filename": "TEXT",
+        "file_size": "INTEGER",
+        "image_width": "INTEGER",
+        "image_height": "INTEGER",
+        "image_format": "TEXT",
+        "style": "TEXT",
+        "detail_level": "TEXT",
+        "audience": "TEXT",
+        "language": "TEXT",
+        "variants": "TEXT"
+    }
+    existing_caption_columns = {row[1] for row in c.execute("PRAGMA table_info(captions)")}
+    for column, column_type in caption_columns.items():
+        if column not in existing_caption_columns:
+            c.execute(f"ALTER TABLE captions ADD COLUMN {column} {column_type}")
     
     # Table for storing user feedback
     c.execute('''CREATE TABLE IF NOT EXISTS feedback
@@ -171,6 +314,45 @@ def init_db():
     
     conn.commit()
     conn.close()
+
+
+def save_uploaded_image(file, folder="uploads"):
+    filename = f"{uuid.uuid4()}-{file.filename}"
+    file_path = os.path.join(folder, filename)
+    file.save(file_path)
+
+    with Image.open(file_path) as image:
+        width, height = image.size
+        image_format = image.format or ""
+
+    return {
+        "path": file_path,
+        "original_filename": file.filename,
+        "file_size": os.path.getsize(file_path),
+        "width": width,
+        "height": height,
+        "format": image_format,
+    }
+
+
+def serialize_caption(row):
+    return {
+        "id": row["id"],
+        "image_path": row["image_path"],
+        "image_url": f"/{row['image_path']}" if row["image_path"] else "",
+        "caption": row["caption"],
+        "created_at": row["created_at"],
+        "original_filename": row["original_filename"],
+        "file_size": row["file_size"],
+        "image_width": row["image_width"],
+        "image_height": row["image_height"],
+        "image_format": row["image_format"],
+        "style": row["style"],
+        "detail_level": row["detail_level"],
+        "audience": row["audience"],
+        "language": row["language"],
+        "variants": json.loads(row["variants"] or "[]"),
+    }
 
 
 def post_process_caption(caption):
@@ -205,32 +387,170 @@ def generate_caption():
         return jsonify({'error': 'No selected file'})
     
     if file:
-        # Save the uploaded file with a unique filename
-        filename = f"{uuid.uuid4()}-{file.filename}"
-        file_path = os.path.join('uploads', filename)
-        file.save(file_path)
+        style = request.form.get('style', 'detailed')
+        detail_level = request.form.get('detail_level', 'rich')
+        audience = request.form.get('audience', 'general')
+        language = request.form.get('language', 'English')
+        variant_count = max(1, min(int(request.form.get('variants', 3)), 3))
+        upload = save_uploaded_image(file)
+        file_path = upload["path"]
         
         try:
-            # Generate caption for the image
-            caption = generate_detailed_caption(file_path)
-            
-            # Post-process the caption to clean up any issues
-            caption = post_process_caption(caption)
+            base_caption = generate_detailed_caption(file_path, style, detail_level, audience, language)
+            variants = [
+                adapt_caption_for_style(base_caption, style, detail_level, audience, language, index)
+                for index in range(variant_count)
+            ]
+            caption = post_process_caption(variants[0])
+            variants = [post_process_caption(variant) for variant in variants]
             
             # Store in database
             conn = sqlite3.connect('visionscribe.db')
             c = conn.cursor()
-            c.execute("INSERT INTO captions (image_path, caption, created_at) VALUES (?, ?, ?)",
-                      (file_path, caption, datetime.now()))
+            c.execute(
+                """INSERT INTO captions
+                   (image_path, caption, created_at, original_filename, file_size, image_width, image_height,
+                    image_format, style, detail_level, audience, language, variants)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    file_path, caption, datetime.now(), upload["original_filename"], upload["file_size"],
+                    upload["width"], upload["height"], upload["format"], style, detail_level, audience,
+                    language, json.dumps(variants)
+                )
+            )
+            caption_id = c.lastrowid
             conn.commit()
             conn.close()
             
-            return jsonify({'caption': caption})
+            return jsonify({
+                'id': caption_id,
+                'caption': caption,
+                'variants': variants,
+                'metadata': upload,
+            })
         except Exception as e:
             # Clean up the file if there's an error
             if os.path.exists(file_path):
                 os.remove(file_path)
             return jsonify({'error': str(e)})
+
+
+@app.route('/api/batch-generate', methods=['POST'])
+def batch_generate():
+    files = request.files.getlist('files')
+    if not files:
+        return jsonify({'error': 'No files uploaded'}), 400
+
+    style = request.form.get('style', 'detailed')
+    detail_level = request.form.get('detail_level', 'balanced')
+    audience = request.form.get('audience', 'general')
+    language = request.form.get('language', 'English')
+    results = []
+
+    for file in files[:8]:
+        if not file.filename:
+            continue
+
+        upload = save_uploaded_image(file)
+        base_caption = generate_detailed_caption(upload["path"], style, detail_level, audience, language)
+        caption = post_process_caption(adapt_caption_for_style(base_caption, style, detail_level, audience, language, 0))
+
+        conn = sqlite3.connect('visionscribe.db')
+        c = conn.cursor()
+        c.execute(
+            """INSERT INTO captions
+               (image_path, caption, created_at, original_filename, file_size, image_width, image_height,
+                image_format, style, detail_level, audience, language, variants)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                upload["path"], caption, datetime.now(), upload["original_filename"], upload["file_size"],
+                upload["width"], upload["height"], upload["format"], style, detail_level, audience,
+                language, json.dumps([caption])
+            )
+        )
+        caption_id = c.lastrowid
+        conn.commit()
+        conn.close()
+        results.append({"id": caption_id, "caption": caption, "metadata": upload})
+
+    return jsonify({"results": results})
+
+
+@app.route('/api/captions/<int:caption_id>', methods=['PUT'])
+def update_caption(caption_id):
+    data = request.json or {}
+    caption = post_process_caption(data.get('caption', ''))
+    if not caption:
+        return jsonify({'error': 'Caption is required'}), 400
+
+    conn = sqlite3.connect('visionscribe.db')
+    c = conn.cursor()
+    c.execute("UPDATE captions SET caption = ? WHERE id = ?", (caption, caption_id))
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True, 'caption': caption})
+
+
+@app.route('/api/history')
+def history():
+    query = request.args.get('query', '').strip()
+    style = request.args.get('style', '').strip()
+    conn = db_connect()
+    sql = "SELECT * FROM captions WHERE 1=1"
+    params = []
+    if query:
+        sql += " AND (caption LIKE ? OR original_filename LIKE ?)"
+        params.extend([f"%{query}%", f"%{query}%"])
+    if style:
+        sql += " AND style = ?"
+        params.append(style)
+    sql += " ORDER BY created_at DESC LIMIT 80"
+    rows = conn.execute(sql, params).fetchall()
+    conn.close()
+    return jsonify({"items": [serialize_caption(row) for row in rows]})
+
+
+@app.route('/api/dashboard')
+def dashboard():
+    conn = db_connect()
+    stats = {
+        "captions": conn.execute("SELECT COUNT(*) AS value FROM captions").fetchone()["value"],
+        "liked": conn.execute("SELECT COUNT(*) AS value FROM feedback WHERE liked = 1").fetchone()["value"],
+        "disliked": conn.execute("SELECT COUNT(*) AS value FROM feedback WHERE liked = 0").fetchone()["value"],
+        "training": conn.execute("SELECT COUNT(*) AS value FROM training_data").fetchone()["value"],
+    }
+    recent_feedback = [
+        dict(row) for row in conn.execute(
+            "SELECT caption, liked, comment, created_at FROM feedback ORDER BY created_at DESC LIMIT 8"
+        ).fetchall()
+    ]
+    conn.close()
+    return jsonify({"stats": stats, "feedback": recent_feedback})
+
+
+@app.route('/api/export')
+def export_captions():
+    export_format = request.args.get('format', 'csv')
+    conn = db_connect()
+    rows = [serialize_caption(row) for row in conn.execute("SELECT * FROM captions ORDER BY created_at DESC").fetchall()]
+    conn.close()
+
+    if export_format == "json":
+        return Response(json.dumps(rows, indent=2), mimetype="application/json")
+
+    if export_format == "txt":
+        body = "\n\n".join(f"{item['original_filename'] or item['image_path']}\n{item['caption']}" for item in rows)
+        return Response(body, mimetype="text/plain")
+
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=[
+        "id", "original_filename", "caption", "style", "detail_level", "audience", "language",
+        "image_width", "image_height", "image_format", "file_size", "created_at"
+    ])
+    writer.writeheader()
+    for item in rows:
+        writer.writerow({key: item.get(key) for key in writer.fieldnames})
+    return Response(output.getvalue(), mimetype="text/csv")
 
 
 @app.route('/api/feedback', methods=['POST'])
@@ -267,10 +587,8 @@ def train_model():
         return jsonify({'error': 'No caption provided'})
     
     if file:
-        # Save the uploaded file with a unique filename
-        filename = f"{uuid.uuid4()}-{file.filename}"
-        file_path = os.path.join('training_data', filename)
-        file.save(file_path)
+        upload = save_uploaded_image(file, 'training_data')
+        file_path = upload["path"]
         
         try:
             # Store in database
@@ -293,6 +611,11 @@ def train_model():
 def serve_static(path):
     """Serve static files."""
     return send_from_directory('static', path)
+
+
+@app.route('/uploads/<path:path>')
+def serve_upload(path):
+    return send_from_directory('uploads', path)
 
 
 if __name__ == '__main__':

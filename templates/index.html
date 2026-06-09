@@ -3,109 +3,226 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VisionScribe - Transforming Images into Detailed Narratives</title>
+    <title>VisionScribe - Image Caption Studio</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
-    <div class="container">
+    <div class="app-shell">
         <header class="app-header">
-            <h1>VisionScribe</h1>
-            <p>Transforming Images into Detailed Narratives</p>
+            <div>
+                <p class="eyebrow">AI image narrative studio</p>
+                <h1>VisionScribe</h1>
+                <p>Generate, refine, export, and improve image captions from one focused workspace.</p>
+            </div>
+            <div class="status-pill">
+                <i class="fas fa-wand-magic-sparkles"></i>
+                <span>Caption studio</span>
+            </div>
         </header>
 
-        <div class="tabs">
-            <button class="tab-button active" data-tab="generate">Generate Caption</button>
-            <button class="tab-button" data-tab="train">Train Model</button>
-        </div>
+        <nav class="tabs" aria-label="VisionScribe workspace">
+            <button class="tab-button active" data-tab="generate"><i class="fas fa-wand-magic-sparkles"></i><span>Generate</span></button>
+            <button class="tab-button" data-tab="batch"><i class="fas fa-layer-group"></i><span>Batch</span></button>
+            <button class="tab-button" data-tab="history"><i class="fas fa-clock-rotate-left"></i><span>History</span></button>
+            <button class="tab-button" data-tab="dashboard"><i class="fas fa-chart-simple"></i><span>Dashboard</span></button>
+            <button class="tab-button" data-tab="train"><i class="fas fa-database"></i><span>Train</span></button>
+        </nav>
 
-        <div class="tab-content active" id="generate-tab">
-            <div class="content-grid">
-                <div class="upload-section">
+        <section class="tab-content active" id="generate-tab">
+            <div class="studio-grid">
+                <div class="left-rail">
+                    <div class="section-heading">
+                        <span>Input</span>
+                        <strong>Image upload</strong>
+                    </div>
                     <div class="image-upload-area" id="upload-area">
                         <div class="upload-placeholder" id="upload-placeholder">
-                            <i class="fas fa-cloud-upload-alt"></i>
-                            <p>Click to upload or drag and drop</p>
-                            <p class="small">PNG, JPG or GIF</p>
+                            <span class="upload-icon"><i class="fas fa-cloud-arrow-up"></i></span>
+                            <strong>Drop an image here</strong>
+                            <p>or browse from your device</p>
+                            <p class="small">PNG, JPG, GIF</p>
                         </div>
                         <img id="image-preview" class="hidden" src="/placeholder.svg" alt="Preview">
-                        <button id="clear-image" class="clear-button hidden">
-                            <i class="fas fa-times"></i>
-                        </button>
+                        <button id="clear-image" class="clear-button hidden" title="Clear image"><i class="fas fa-times"></i></button>
                         <input type="file" id="file-upload" accept="image/*" hidden>
                     </div>
-                    <button id="generate-button" class="primary-button" disabled>
-                        <i class="fas fa-magic"></i> Generate Caption
-                    </button>
+
+                    <div class="metadata-panel" id="metadata-panel">
+                        <span>No image selected</span>
+                    </div>
                 </div>
 
-                <div class="result-section">
+                <div class="right-rail">
+                    <div class="control-panel">
+                        <div class="section-heading">
+                            <span>Prompt controls</span>
+                            <strong>Caption style</strong>
+                        </div>
+
+                        <div class="style-grid" id="style-options">
+                            <button class="style-option active" data-style="detailed"><i class="fas fa-align-left"></i><span>Detailed</span></button>
+                            <button class="style-option" data-style="concise"><i class="fas fa-compress"></i><span>Concise</span></button>
+                            <button class="style-option" data-style="alt"><i class="fas fa-universal-access"></i><span>Alt text</span></button>
+                            <button class="style-option" data-style="social"><i class="fas fa-hashtag"></i><span>Social</span></button>
+                            <button class="style-option" data-style="product"><i class="fas fa-tag"></i><span>Product</span></button>
+                            <button class="style-option" data-style="poetic"><i class="fas fa-feather"></i><span>Poetic</span></button>
+                        </div>
+
+                        <div class="form-grid">
+                            <label>
+                                <span>Detail</span>
+                                <select id="detail-level">
+                                    <option value="rich">Rich</option>
+                                    <option value="balanced">Balanced</option>
+                                    <option value="short">Short</option>
+                                </select>
+                            </label>
+                            <label>
+                                <span>Audience</span>
+                                <input id="audience-input" type="text" value="general" placeholder="e.g. marketers">
+                            </label>
+                            <label>
+                                <span>Language</span>
+                                <input id="language-input" type="text" value="English" placeholder="e.g. Bengali">
+                            </label>
+                            <label>
+                                <span>Variants</span>
+                                <select id="variant-count">
+                                    <option value="3">3 variants</option>
+                                    <option value="2">2 variants</option>
+                                    <option value="1">1 variant</option>
+                                </select>
+                            </label>
+                        </div>
+
+                        <button id="generate-button" class="primary-button" disabled>
+                            <i class="fas fa-magic"></i> Generate Caption
+                        </button>
+                    </div>
+
                     <div class="caption-card" id="caption-card">
-                        <h2>Generated Caption:</h2>
-                        <div class="caption-content" id="caption-content">
-                            <p class="placeholder-text">Generated caption will appear here</p>
+                        <div class="section-heading">
+                            <span>Output</span>
+                            <strong>Editable caption</strong>
                         </div>
+                        <textarea id="caption-editor" class="caption-editor" placeholder="Your generated caption will appear here."></textarea>
                         <div class="action-buttons hidden" id="action-buttons">
-                            <button id="like-button" class="action-button like">
-                                <i class="fas fa-thumbs-up"></i> Like
-                            </button>
-                            <button id="dislike-button" class="action-button dislike">
-                                <i class="fas fa-thumbs-down"></i> Dislike
-                            </button>
-                            <button id="copy-button" class="action-button copy">
-                                <i class="fas fa-copy"></i> Copy
-                            </button>
+                            <button id="save-caption-button" class="action-button save"><i class="fas fa-floppy-disk"></i> Save Edit</button>
+                            <button id="like-button" class="action-button like"><i class="fas fa-thumbs-up"></i> Like</button>
+                            <button id="dislike-button" class="action-button dislike"><i class="fas fa-thumbs-down"></i> Dislike</button>
+                            <button id="copy-button" class="action-button copy"><i class="fas fa-copy"></i> Copy</button>
                         </div>
+                    </div>
+
+                    <div class="variants-panel hidden" id="variants-panel">
+                        <div class="section-heading">
+                            <span>Options</span>
+                            <strong>Caption variants</strong>
+                        </div>
+                        <div class="variants-grid" id="variants-grid"></div>
                     </div>
 
                     <div class="feedback-form hidden" id="feedback-form">
-                        <h3>Provide Additional Feedback:</h3>
-                        <textarea id="feedback-comment" placeholder="Enter your feedback here..."></textarea>
-                        <button id="submit-feedback" class="secondary-button">
-                            Submit Feedback
-                        </button>
+                        <h3>Feedback note</h3>
+                        <textarea id="feedback-comment" placeholder="What should the model understand better?"></textarea>
+                        <button id="submit-feedback" class="secondary-button"><i class="fas fa-paper-plane"></i> Submit Feedback</button>
                     </div>
                 </div>
             </div>
-        </div>
+        </section>
 
-        <div class="tab-content" id="train-tab">
+        <section class="tab-content" id="batch-tab">
+            <div class="batch-grid">
+                <div class="control-panel">
+                    <div class="section-heading">
+                        <span>Bulk captions</span>
+                        <strong>Batch upload</strong>
+                    </div>
+                    <input type="file" id="batch-file-upload" accept="image/*" multiple>
+                    <p class="hint-text">Upload up to 8 images and generate a caption for each one using the current style controls.</p>
+                    <button id="batch-generate-button" class="primary-button"><i class="fas fa-layer-group"></i> Generate Batch</button>
+                </div>
+                <div class="batch-results" id="batch-results">
+                    <p class="placeholder-text">Batch results will appear here.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="tab-content" id="history-tab">
+            <div class="history-toolbar">
+                <div class="search-box">
+                    <i class="fas fa-search"></i>
+                    <input id="history-search" type="search" placeholder="Search captions or filenames">
+                </div>
+                <select id="history-style-filter">
+                    <option value="">All styles</option>
+                    <option value="detailed">Detailed</option>
+                    <option value="concise">Concise</option>
+                    <option value="alt">Alt text</option>
+                    <option value="social">Social</option>
+                    <option value="product">Product</option>
+                    <option value="poetic">Poetic</option>
+                </select>
+                <div class="export-buttons">
+                    <a class="tool-button" href="/api/export?format=csv"><i class="fas fa-file-csv"></i> CSV</a>
+                    <a class="tool-button" href="/api/export?format=json"><i class="fas fa-code"></i> JSON</a>
+                    <a class="tool-button" href="/api/export?format=txt"><i class="fas fa-file-lines"></i> TXT</a>
+                </div>
+            </div>
+            <div class="history-grid" id="history-grid"></div>
+        </section>
+
+        <section class="tab-content" id="dashboard-tab">
+            <div class="stats-grid" id="stats-grid"></div>
+            <div class="feedback-feed">
+                <div class="section-heading">
+                    <span>Review loop</span>
+                    <strong>Recent feedback</strong>
+                </div>
+                <div id="feedback-feed"></div>
+            </div>
+        </section>
+
+        <section class="tab-content" id="train-tab">
             <div class="content-grid">
                 <div class="upload-section">
+                    <div class="section-heading">
+                        <span>Dataset</span>
+                        <strong>Training image</strong>
+                    </div>
                     <div class="image-upload-area" id="train-upload-area">
                         <div class="upload-placeholder" id="train-upload-placeholder">
-                            <i class="fas fa-cloud-upload-alt"></i>
-                            <p>Click to upload or drag and drop</p>
-                            <p class="small">PNG, JPG or GIF</p>
+                            <span class="upload-icon"><i class="fas fa-image"></i></span>
+                            <strong>Add a training image</strong>
+                            <p>pair it with a precise caption</p>
+                            <p class="small">PNG, JPG, GIF</p>
                         </div>
                         <img id="train-image-preview" class="hidden" src="/placeholder.svg" alt="Preview">
-                        <button id="train-clear-image" class="clear-button hidden">
-                            <i class="fas fa-times"></i>
-                        </button>
+                        <button id="train-clear-image" class="clear-button hidden" title="Clear training image"><i class="fas fa-times"></i></button>
                         <input type="file" id="train-file-upload" accept="image/*" hidden>
                     </div>
                 </div>
 
                 <div class="training-section">
                     <div class="caption-input-card">
-                        <h3>Accurate Caption</h3>
-                        <textarea id="training-caption" placeholder="Enter an accurate caption for this image..."></textarea>
-                        <p class="hint-text">Provide a detailed and accurate caption for the image to help train the model.</p>
-                        <button id="save-training" class="primary-button" disabled>
-                            <i class="fas fa-save"></i> Save Training Data
-                        </button>
+                        <div class="section-heading">
+                            <span>Label</span>
+                            <strong>Accurate caption</strong>
+                        </div>
+                        <textarea id="training-caption" placeholder="Describe the image with concrete objects, setting, lighting, and visible details."></textarea>
+                        <p class="hint-text">Clear, specific labels help future captions become more reliable.</p>
+                        <button id="save-training" class="primary-button" disabled><i class="fas fa-save"></i> Save Training Data</button>
                     </div>
                 </div>
             </div>
 
             <div class="info-card">
-                <h3>About Training</h3>
-                <p>
-                    By providing accurate captions for images, you help improve the model's ability to generate 
-                    better descriptions. Your contributions are valuable for enhancing the AI's understanding of visual content.
-                </p>
+                <i class="fas fa-circle-info"></i>
+                <h3>Training data is saved locally</h3>
+                <p>Each image-caption pair is stored in the app database so you can build a cleaner feedback loop over time.</p>
             </div>
-        </div>
+        </section>
 
         <div id="toast" class="toast hidden">
             <div class="toast-content">
@@ -115,7 +232,6 @@
                     <span id="toast-description"></span>
                 </div>
             </div>
-            <div class="toast-progress"></div>
         </div>
     </div>
 

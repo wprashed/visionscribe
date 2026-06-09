@@ -1,136 +1,198 @@
-# VisionScribe: Transforming Images into Detailed Narratives
+# VisionScribe
 
-VisionScribe is a web application that leverages advanced AI models to generate detailed captions and narratives from images. Users can upload an image, and the application will provide a caption describing the contents. The generated captions are detailed and contextually enriched using the BLIP (Bootstrapping Language Image Pretraining) model.
+VisionScribe is a Flask web application for generating, refining, exporting, and improving image captions. It uses the BLIP image captioning model by default, with an optional OpenAI vision fallback when `OPENAI_API_KEY` is configured.
 
 ## Features
 
-- **Image Upload**: Users can upload PNG, JPG, or GIF images.
-- **Automatic Caption Generation**: The application generates a basic caption and then enhances it with a detailed narrative using the BLIP model.
-- **Feedback System**: Users can provide feedback by liking or disliking the generated caption and submitting additional comments.
-- **User Interface**: A simple and responsive frontend built with Tailwind CSS and Alpine.js.
+- Upload PNG, JPG, GIF, and other browser-supported image files.
+- Generate captions with style modes: detailed, concise, alt text, social, product, and poetic.
+- Control detail level, audience, language, and number of caption variants.
+- Compare distinct caption variants and choose one for editing.
+- Edit generated captions and save the revised version.
+- View image metadata such as filename, size, dimensions, and format.
+- Submit like/dislike feedback with optional notes.
+- Batch-generate captions for multiple images.
+- Browse caption history with search and style filters.
+- Export saved captions as CSV, JSON, or TXT.
+- Review caption, feedback, and training-data counts in the dashboard.
+- Save training image-caption pairs locally.
 
 ## Tech Stack
 
-- **Backend**: Python, Flask
-- **AI Model**: BLIP (Salesforce/blip-image-captioning-large)
-- **Database**: SQLite
-- **Frontend**: HTML, Tailwind CSS, Alpine.js
-- **Image Processing**: PIL (Python Imaging Library)
-- **Deep Learning Framework**: PyTorch
+- Backend: Python, Flask
+- Model: `Salesforce/blip-image-captioning-large`
+- Deep learning: PyTorch, Transformers
+- Image processing: Pillow
+- Database: SQLite
+- Frontend: HTML, CSS, vanilla JavaScript
 
 ## Requirements
 
 - Python 3.8+
-- pip (Python package manager)
-- torch
-- transformers
-- Flask
-- Pillow
-- SQLite (Pre-installed with Python)
+- pip
+- Internet access on first run to download model weights, unless already cached
+
+Python packages are listed in `requirements.txt`.
 
 ## Installation
 
-### 1. Clone the repository
+Clone the project and create a local virtual environment:
 
 ```bash
 git clone https://github.com/wprashed/visionscribe
 cd visionscribe
-```
-
-### 2. Install dependencies
-
-```bash
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 3. Set up the database
-
-The app uses SQLite to store user feedback. When the app starts, it will automatically create the `feedback.db` file.
+If you already have the repository locally, run from the project directory:
 
 ```bash
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+## Running The App
+
+Start the Flask server:
+
+```bash
+source .venv/bin/activate
 python app.py
 ```
 
-### 4. Start the Flask Application
+Open the app at:
 
-Run the following command to start the Flask server:
-
-```bash
-python app.py
+```text
+http://127.0.0.1:5000
 ```
 
-The server will start, and you can access the web app at `http://127.0.0.1:5000`.
+The first startup can take time because the BLIP model may need to download and initialize.
+
+## Optional OpenAI Fallback
+
+To enable the OpenAI vision fallback, create a `.env` file:
+
+```bash
+OPENAI_API_KEY=your_api_key_here
+```
+
+Without this key, VisionScribe uses the local BLIP pipeline.
 
 ## Usage
 
-### Uploading an Image
-
-- Navigate to the web interface at `http://127.0.0.1:5000`.
-- Click on the "Click to upload" area or drag and drop an image.
-- The app will process the image and generate a detailed caption.
-- You can then provide feedback on the caption by either liking or disliking it and submitting additional comments.
-
-### Viewing and Providing Feedback
-
-After the caption is generated, you will have the option to:
-
-- **Like/Dislike**: Provide feedback on the generated caption.
-- **Copy**: Copy the caption to your clipboard.
-- **Submit Feedback**: If you liked or disliked the caption, you can provide further comments which will be saved to the database.
-
-## Database
-
-The application uses SQLite to store user feedback, which includes:
-
-- **id**: A unique identifier for each feedback.
-- **caption**: The generated caption.
-- **liked**: Whether the user liked the caption (1 for liked, 0 for disliked).
-- **comment**: The feedback comment from the user.
+1. Open the Generate tab.
+2. Upload or drag in an image.
+3. Choose a caption style and prompt controls.
+4. Generate captions and compare the variants.
+5. Select a variant, edit the caption, then save it if needed.
+6. Copy the caption or submit feedback.
+7. Use Batch for multiple images, History for saved captions, Dashboard for stats, and Train for local training pairs.
 
 ## API Endpoints
 
-### `POST /`
-Uploads an image and returns the generated caption.
+### `POST /api/generate-caption`
 
-**Request Body (Form Data)**:
-- `file`: The image file to be uploaded.
+Generates caption variants for one uploaded image.
 
-**Response**:
+Form fields:
+
+- `file`: image file
+- `style`: `detailed`, `concise`, `alt`, `social`, `product`, or `poetic`
+- `detail_level`: `short`, `balanced`, or `rich`
+- `audience`: target audience text
+- `language`: output language preference
+- `variants`: `1`, `2`, or `3`
+
+### `POST /api/batch-generate`
+
+Generates captions for up to 8 uploaded images.
+
+Form fields:
+
+- `files`: one or more image files
+- `style`
+- `detail_level`
+- `audience`
+- `language`
+
+### `PUT /api/captions/<caption_id>`
+
+Updates a saved caption.
+
+JSON body:
+
 ```json
 {
-  "caption": "Generated caption text here"
+  "caption": "Updated caption text"
 }
 ```
 
-### `POST /feedback`
-Submits user feedback on the caption.
+### `GET /api/history`
 
-**Request Body (JSON)**:
+Returns saved captions.
+
+Query parameters:
+
+- `query`: optional search text
+- `style`: optional style filter
+
+### `GET /api/dashboard`
+
+Returns caption, feedback, and training-data summary statistics.
+
+### `GET /api/export?format=csv`
+
+Exports saved captions.
+
+Supported formats:
+
+- `csv`
+- `json`
+- `txt`
+
+### `POST /api/feedback`
+
+Saves feedback for a caption.
+
+JSON body:
+
 ```json
 {
-  "caption": "Generated caption text here",
-  "liked": 1,
-  "comment": "User's comment here"
+  "caption": "Generated or edited caption",
+  "liked": true,
+  "comment": "Optional feedback note"
 }
 ```
 
-**Response**:
-```json
-{
-  "success": true
-}
-```
+### `POST /api/train`
 
-## Contributing
+Stores a training image-caption pair.
 
-Feel free to fork the project, submit issues, and create pull requests. Contributions are welcome!
+Form fields:
 
-## License
+- `file`: image file
+- `caption`: accurate caption text
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+## Local Data
+
+VisionScribe stores local data in:
+
+- `visionscribe.db`: SQLite database
+- `uploads/`: generated-caption image uploads
+- `training_data/`: training image-caption uploads
+
+These files are local application data and can grow over time.
+
+## Notes
+
+- Use `.venv/bin/python app.py` or activate `.venv` before running the app.
+- If you see `ModuleNotFoundError`, you are probably using the system Python instead of the virtual environment.
+- The generated variants are derived from the base model caption and formatted into distinct caption perspectives.
 
 ## Acknowledgments
 
-- The BLIP model is provided by Salesforce for image captioning and has been integrated into this project.
-- Flask is used to build the backend API.
-- Tailwind CSS and Alpine.js are used to build the responsive and interactive frontend.
+- BLIP image captioning model by Salesforce.
+- Flask for the backend application.
+- PyTorch and Transformers for model inference.
