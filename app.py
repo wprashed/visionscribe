@@ -335,6 +335,17 @@ def save_uploaded_image(file, folder="uploads"):
     }
 
 
+def remove_local_file(path):
+    if not path:
+        return
+    normalized = os.path.normpath(path)
+    allowed_roots = {os.path.normpath('uploads'), os.path.normpath('training_data')}
+    if normalized.split(os.sep)[0] not in allowed_roots:
+        return
+    if os.path.exists(normalized):
+        os.remove(normalized)
+
+
 def serialize_caption(row):
     return {
         "id": row["id"],
@@ -491,6 +502,21 @@ def update_caption(caption_id):
     return jsonify({'success': True, 'caption': caption})
 
 
+@app.route('/api/captions/<int:caption_id>', methods=['DELETE'])
+def delete_caption(caption_id):
+    conn = db_connect()
+    row = conn.execute("SELECT image_path FROM captions WHERE id = ?", (caption_id,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'error': 'Caption not found'}), 404
+
+    conn.execute("DELETE FROM captions WHERE id = ?", (caption_id,))
+    conn.commit()
+    conn.close()
+    remove_local_file(row["image_path"])
+    return jsonify({'success': True})
+
+
 @app.route('/api/history')
 def history():
     query = request.args.get('query', '').strip()
@@ -508,6 +534,20 @@ def history():
     rows = conn.execute(sql, params).fetchall()
     conn.close()
     return jsonify({"items": [serialize_caption(row) for row in rows]})
+
+
+@app.route('/api/history', methods=['DELETE'])
+def clear_history():
+    conn = db_connect()
+    rows = conn.execute("SELECT image_path FROM captions").fetchall()
+    conn.execute("DELETE FROM captions")
+    conn.commit()
+    conn.close()
+
+    for row in rows:
+        remove_local_file(row["image_path"])
+
+    return jsonify({'success': True, 'deleted': len(rows)})
 
 
 @app.route('/api/dashboard')

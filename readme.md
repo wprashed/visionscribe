@@ -13,6 +13,7 @@ VisionScribe is a Flask web application for generating, refining, exporting, and
 - Submit like/dislike feedback with optional notes.
 - Batch-generate captions for multiple images.
 - Browse caption history with search and style filters.
+- Delete individual history items or clear the full caption history.
 - Export saved captions as CSV, JSON, or TXT.
 - Review caption, feedback, and training-data counts in the dashboard.
 - Save training image-caption pairs locally.
@@ -129,6 +130,10 @@ JSON body:
 }
 ```
 
+### `DELETE /api/captions/<caption_id>`
+
+Deletes a specific saved caption and removes its uploaded image file.
+
 ### `GET /api/history`
 
 Returns saved captions.
@@ -137,6 +142,10 @@ Query parameters:
 
 - `query`: optional search text
 - `style`: optional style filter
+
+### `DELETE /api/history`
+
+Deletes all saved caption history and removes uploaded caption images.
 
 ### `GET /api/dashboard`
 

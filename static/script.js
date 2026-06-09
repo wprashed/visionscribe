@@ -28,6 +28,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const historySearch = document.getElementById("history-search")
   const historyStyleFilter = document.getElementById("history-style-filter")
   const historyGrid = document.getElementById("history-grid")
+  const clearHistoryButton = document.getElementById("clear-history-button")
   const statsGrid = document.getElementById("stats-grid")
   const feedbackFeed = document.getElementById("feedback-feed")
 
@@ -284,6 +285,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   historySearch.addEventListener("input", debounce(loadHistory, 250))
   historyStyleFilter.addEventListener("change", loadHistory)
+  clearHistoryButton.addEventListener("click", clearHistory)
+  historyGrid.addEventListener("click", (event) => {
+    const deleteButton = event.target.closest("[data-delete-caption]")
+    if (!deleteButton) return
+    deleteHistoryItem(deleteButton.dataset.deleteCaption)
+  })
 
   async function loadHistory() {
     const params = new URLSearchParams({
@@ -297,6 +304,42 @@ document.addEventListener("DOMContentLoaded", () => {
       return
     }
     historyGrid.innerHTML = data.items.map(renderHistoryItem).join("")
+  }
+
+  async function deleteHistoryItem(captionId) {
+    if (!captionId) return
+    const confirmed = window.confirm("Delete this caption from history?")
+    if (!confirmed) return
+
+    try {
+      const response = await fetch(`/api/captions/${captionId}`, { method: "DELETE" })
+      const data = await response.json()
+      if (!data.success) throw new Error(data.error || "Could not delete caption")
+      showToast("success", "Deleted", "Caption removed from history")
+      loadHistory()
+      loadDashboard(false)
+    } catch (error) {
+      showToast("error", "Delete failed", error.message)
+    }
+  }
+
+  async function clearHistory() {
+    const confirmed = window.confirm("Delete all caption history? This cannot be undone.")
+    if (!confirmed) return
+
+    setBusy(clearHistoryButton, "Clearing...")
+    try {
+      const response = await fetch("/api/history", { method: "DELETE" })
+      const data = await response.json()
+      if (!data.success) throw new Error(data.error || "Could not clear history")
+      showToast("success", "History cleared", `${data.deleted || 0} captions removed`)
+      loadHistory()
+      loadDashboard(false)
+    } catch (error) {
+      showToast("error", "Clear failed", error.message)
+    } finally {
+      resetBusy(clearHistoryButton, '<i class="fas fa-trash"></i> Clear')
+    }
   }
 
   async function loadDashboard(showErrors = true) {
@@ -424,8 +467,12 @@ document.addEventListener("DOMContentLoaded", () => {
       <article class="history-card">
         <img src="${escapeHtml(item.image_url)}" alt="">
         <div>
-          <div class="history-meta"><span>${escapeHtml(item.style || "detailed")}</span><span>${formatDate(item.created_at)}</span></div>
+          <div class="history-meta">
+            <span>${escapeHtml(item.style || "detailed")}</span>
+            <button class="icon-button danger" type="button" data-delete-caption="${item.id}" title="Delete caption"><i class="fas fa-trash"></i></button>
+          </div>
           <strong>${escapeHtml(item.original_filename || "Uploaded image")}</strong>
+          <span class="history-date">${formatDate(item.created_at)}</span>
           <p>${escapeHtml(item.caption)}</p>
         </div>
       </article>

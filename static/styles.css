@@ -397,6 +397,17 @@ button {
   background: var(--brand-soft);
 }
 
+.tool-button.danger {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.tool-button.danger:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+  background: #fee2e2;
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -763,9 +774,45 @@ textarea:focus {
 
 .history-meta {
   display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 10px;
   margin-bottom: 8px;
+}
+
+.history-date {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.icon-button {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.icon-button:hover {
+  border-color: var(--brand);
+  color: var(--brand);
+  background: var(--brand-soft);
+}
+
+.icon-button.danger {
+  color: var(--danger);
+}
+
+.icon-button.danger:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+  background: var(--danger-soft);
 }
 
 .stats-grid {
