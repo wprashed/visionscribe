@@ -3,3 +3,5 @@
 /templates
 /uploads
 /.venv
+*.db
+visionscribe.db
