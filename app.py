@@ -8,7 +8,7 @@ from datetime import datetime
 from flask import Flask, render_template, request, jsonify, send_from_directory, Response
 from PIL import Image
 import torch
-from transformers import BlipProcessor, BlipForConditionalGeneration
+from transformers import BlipProcessor, BlipForConditionalGeneration, MarianMTModel, MarianTokenizer
 import requests
 import json
 from dotenv import load_dotenv
@@ -46,11 +46,51 @@ DETAIL_LIMITS = {
     "rich": 420,
 }
 
+TRANSLATION_MODELS = {
+    "Bengali": "Helsinki-NLP/opus-mt-en-bn",
+    "Hindi": "Helsinki-NLP/opus-mt-en-hi",
+    "Spanish": "Helsinki-NLP/opus-mt-en-es",
+    "French": "Helsinki-NLP/opus-mt-en-fr",
+    "German": "Helsinki-NLP/opus-mt-en-de",
+    "Arabic": "Helsinki-NLP/opus-mt-en-ar",
+    "Chinese": "Helsinki-NLP/opus-mt-en-zh",
+    "Japanese": "Helsinki-NLP/opus-mt-en-jap",
+}
+
+translation_cache = {}
+
 
 def db_connect():
     conn = sqlite3.connect('visionscribe.db')
     conn.row_factory = sqlite3.Row
     return conn
+
+
+def translate_text(text, language="English"):
+    """Translate text locally with Hugging Face models when a target language is selected."""
+    if not text or not language or language == "English":
+        return text
+
+    model_name = TRANSLATION_MODELS.get(language)
+    if not model_name:
+        return text
+
+    try:
+        if model_name not in translation_cache:
+            tokenizer = MarianTokenizer.from_pretrained(model_name)
+            model = MarianMTModel.from_pretrained(model_name)
+            translation_cache[model_name] = (tokenizer, model)
+        tokenizer, model = translation_cache[model_name]
+        inputs = tokenizer([text], return_tensors="pt", truncation=True, max_length=512)
+        translated = model.generate(**inputs, max_new_tokens=512)
+        return tokenizer.decode(translated[0], skip_special_tokens=True)
+    except Exception as e:
+        print(f"Translation unavailable for {language}: {str(e)}")
+        return text
+
+
+def translate_items(items, language="English"):
+    return [post_process_caption(translate_text(item, language)) for item in items]
 
 
 def generate_caption_with_openai(image_path, style="detailed", detail_level="rich", audience="general", language="English"):
@@ -142,11 +182,9 @@ def lower_first(text):
     return text[:1].lower() + text[1:] if text else text
 
 
-def apply_audience_language(variants, audience="general", language="English"):
+def apply_audience_language(variants, audience="general"):
     if audience and audience.lower() not in ("general", ""):
         variants = [f"For {audience}: {variant}" for variant in variants]
-    if language and language.lower() not in ("english", ""):
-        variants = [f"{variant} Requested language: {language}." for variant in variants]
     return variants
 
 
@@ -203,14 +241,14 @@ def adapt_caption_for_style(base_caption, style="detailed", detail_level="rich",
             f"Accessibility-focused description: {primary} The image also includes {supporting_details}." if supporting_details else f"Accessibility-focused description: {caption}",
         ]
 
-    variants = apply_audience_language(variants, audience, language)
+    variants = apply_audience_language(variants, audience)
     return variants[variant_index % len(variants)]
 
 
 def generate_detailed_caption(image_path, style="detailed", detail_level="rich", audience="general", language="English"):
     """Generate a detailed caption for an image using multiple methods."""
     # First try with OpenAI if available (produces better results)
-    openai_caption = generate_caption_with_openai(image_path, style, detail_level, audience, language)
+    openai_caption = generate_caption_with_openai(image_path, style, detail_level, audience, "English")
     if openai_caption:
         return openai_caption
     
@@ -412,8 +450,8 @@ def generate_caption():
                 adapt_caption_for_style(base_caption, style, detail_level, audience, language, index)
                 for index in range(variant_count)
             ]
+            variants = translate_items(variants, language)
             caption = post_process_caption(variants[0])
-            variants = [post_process_caption(variant) for variant in variants]
             
             # Store in database
             conn = sqlite3.connect('visionscribe.db')
@@ -464,7 +502,11 @@ def batch_generate():
 
         upload = save_uploaded_image(file)
         base_caption = generate_detailed_caption(upload["path"], style, detail_level, audience, language)
-        caption = post_process_caption(adapt_caption_for_style(base_caption, style, detail_level, audience, language, 0))
+        caption = translate_text(
+            adapt_caption_for_style(base_caption, style, detail_level, audience, language, 0),
+            language
+        )
+        caption = post_process_caption(caption)
 
         conn = sqlite3.connect('visionscribe.db')
         c = conn.cursor()

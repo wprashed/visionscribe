@@ -7,11 +7,12 @@ VisionScribe is a Flask web application for generating, refining, exporting, and
 - Upload PNG, JPG, GIF, and other browser-supported image files.
 - Generate captions with style modes: detailed, concise, alt text, social, product, and poetic.
 - Control detail level, audience, language, and number of caption variants.
+- Generate English captions or translate captions locally into Bengali, Hindi, Spanish, French, German, Arabic, Chinese, or Japanese.
 - Compare distinct caption variants and choose one for editing.
 - Edit generated captions and save the revised version.
 - View image metadata such as filename, size, dimensions, and format.
 - Submit like/dislike feedback with optional notes.
-- Batch-generate captions for multiple images.
+- Batch-generate captions for multiple images with dedicated batch style, detail, audience, and language controls.
 - Browse caption history with search and style filters.
 - Delete individual history items or clear the full caption history.
 - Export saved captions as CSV, JSON, or TXT.
@@ -32,6 +33,7 @@ VisionScribe is a Flask web application for generating, refining, exporting, and
 - Python 3.8+
 - pip
 - Internet access on first run to download model weights, unless already cached
+- Internet access on first use of a non-English language to download the local translation model
 
 Python packages are listed in `requirements.txt`.
 
@@ -89,7 +91,25 @@ Without this key, VisionScribe uses the local BLIP pipeline.
 4. Generate captions and compare the variants.
 5. Select a variant, edit the caption, then save it if needed.
 6. Copy the caption or submit feedback.
-7. Use Batch for multiple images, History for saved captions, Dashboard for stats, and Train for local training pairs.
+7. Use Batch for multiple images with its own caption controls, History for saved captions, Dashboard for stats, and Train for local training pairs.
+
+## Language Support
+
+VisionScribe does not require API keys for language support. English captions are generated locally with BLIP. Non-English outputs use local Hugging Face translation models that are downloaded on first use and cached afterward.
+
+Supported language options:
+
+- English
+- Bengali
+- Hindi
+- Spanish
+- French
+- German
+- Arabic
+- Chinese
+- Japanese
+
+If a translation model is unavailable, the app falls back to the generated English caption instead of failing the request.
 
 ## API Endpoints
 
